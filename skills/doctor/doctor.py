@@ -6,6 +6,8 @@
 
 Local (CONDUCTOR_IS_LOCAL=1): also checks Conductor's database and the outbox table babysitter writes to.
 Cloud: also checks the conductor CLI's token and which cloud workspaces were created before the latest release.
+Vendored (this file is .claude/skills/babysitter-doctor/doctor.py, copied by cloud-setup.py): compares the committed
+copy with the latest release instead of the installed plugin.
 """
 import datetime, glob, json, os, re, sqlite3, subprocess, sys
 
@@ -45,6 +47,38 @@ def plugin_versions():
         installs = []
     return [(i.get("scope", "?"), short(i.get("gitCommitSha") or i.get("version")), i.get("lastUpdated", "")[:16],
              i.get("projectPath", ""), i.get("installedAt", "")) for i in installs]
+
+
+def vendored():
+    # A copy in a repo's .claude/skills/, made by cloud-setup.py: returns that repo's root and the commit it came from.
+    here = os.path.dirname(os.path.realpath(__file__))
+    if os.path.basename(here) != "babysitter-doctor":
+        return None
+    try:
+        sha = open(os.path.join(here, ".babysitter-source")).read().strip().rsplit("@", 1)[-1]
+    except OSError:
+        sha = ""
+    return os.path.dirname(os.path.dirname(os.path.dirname(here))), short(sha)
+
+
+def check_vendored(root, sha):
+    latest, latest_date = latest_release()
+    if not latest:
+        add("⚠", "latest babysitter release", "couldn't reach GitHub", "check the network; skipping version checks")
+    elif sha and (latest.startswith(sha) or sha.startswith(latest)):
+        add("✓", "skills in .claude/skills/", f"{sha}, the latest release")
+    else:
+        add("⚠", "skills in .claude/skills/", f"{sha or 'no .babysitter-source'}, latest is {latest}",
+            "the daily sync picks it up; now: gh workflow run sync-babysitter-skills.yml, then git pull in this workspace and a new session")
+    wf = os.path.exists(os.path.join(root, ".github/workflows/sync-babysitter-skills.yml"))
+    add("✓" if wf else "⛔", "daily sync workflow", "" if wf else "none", "" if wf else "run `/babysitter:cloud-setup` from the plugin, or copy the workflow from its cloud-setup skill")
+    try:
+        on = json.load(open(os.path.join(root, ".claude/settings.json"))).get("enabledPlugins", {}).get(PLUGIN)
+    except (OSError, ValueError):
+        on = None
+    if plugin_versions() and on is not False:
+        add("⚠", "plugin also enabled", "every skill shows twice (`/babysitter:x` and `/babysitter-x`)", f'set "{PLUGIN}": false under enabledPlugins in .claude/settings.json')
+    return latest_date
 
 
 def running_version():
@@ -147,14 +181,17 @@ def check_cloud(latest_date):
     add("✓", "conductor CLI", f"{len(data)} open workspaces of {repo}")
     me = next((w for w in data if w.get("id") == os.environ.get("CONDUCTOR_WORKSPACE_ID")), None)
     installed_at = max((i[4] for i in plugin_versions()), default="")
-    if me and installed_at and installed_at > (me.get("createdAt") or "") and (me.get("createdAt") or ""):
+    if me and installed_at and installed_at > (me.get("createdAt") or "") and (me.get("createdAt") or "") and not vendored():
         add("⛔", "installed after this workspace was created", f"workspace {me['createdAt'][:16]}, plugin {installed_at[:16]}",
-            "the plugin was installed after this workspace's first session started, by a SessionStart hook or by a Setup script that failed or was still running. Make sure the repository's Setup script in your organization's cloud settings has the install line (.conductor/settings.toml's setup is local-only); if it already does, check that script's output in a fresh workspace for errors or slowness. Meanwhile, type the full `/babysitter:…` name, which works even when the picker doesn't list it; the picker catches up after a few sessions")
+            "the plugin was installed after this workspace's first session started, by a SessionStart hook or by a Setup script that failed or was still running. Make sure the repository's Setup script in your organization's cloud settings has the install line (.conductor/settings.toml's setup is local-only); if it already does, check that script's output in a fresh workspace for errors or slowness. Meanwhile, type the full `/babysitter:…` name, which works even when the picker doesn't list it. For good: `/babysitter:cloud-setup` (skills committed to the repo, or a SessionStart hook that tells the session to /reload-plugins)")
     report_queues([w.get("name", "") for w in data])
     if latest_date:
         stale = [w.get("name", "?") for w in data if (w.get("createdAt") or w.get("created_at") or "") < latest_date
                  and w.get("id") != os.environ.get("CONDUCTOR_WORKSPACE_ID")]
-        if stale:
+        if stale and vendored():
+            add("⚠", "created before the latest babysitter release", ", ".join(stale),
+                "their committed copies may be older; in each: git merge origin/<default branch>, then a new session")
+        elif stale:
             add("⚠", "created before the latest babysitter release", ", ".join(stale),
                 "probably on an older version; in each: claude plugin marketplace add %s --scope project && claude plugin install %s --scope project, then a new session. Queue and change workspaces don't need it; only where you'll type /babysitter: commands" % (REPO, PLUGIN))
 
@@ -195,7 +232,8 @@ def send_test(local):
 
 def main():
     local = os.environ.get("CONDUCTOR_IS_LOCAL", "1") != "0"
-    latest_date = check_plugin(local)
+    v = vendored()
+    latest_date = check_vendored(*v) if v else check_plugin(local)
     check_tools(local)
     check_repo_defaults()
     (check_local if local else lambda: check_cloud(latest_date))()

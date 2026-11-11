@@ -13,6 +13,7 @@ Conductor lets you run many coding agents side by side, each in its own workspac
 | **status-check** | Where things stand, from wherever you run it. In Babysitter HQ, a full digest with the table. In an Open Actions, Decisions or Tests workspace, how many items are open, by ID with a line each. In any other workspace, its stage, PR and checks, and what's left before merge. |
 | **doctor** | Am I on the latest version, and can babysitter work here? Compares the installed plugin and this session's copy with the latest release; checks `gh`, `openspec`, your `## babysitter` defaults, Conductor's database (local) or the `conductor` CLI token and stale workspaces (cloud). Read-only, with a fix per ⛔. |
 | **safe-to-archive** | Checks whether a workspace can be archived without losing anything: uncommitted or unpushed work, open PRs, stashes, unarchived OpenSpec changes, files that only exist in this workspace, running processes. Read-only. |
+| **cloud-setup** | Run once per repo that uses cloud workspaces, so the skills are in the `/` picker from a new workspace's first session. It commits copies of the skills to `.claude/skills/` with a daily GitHub Action that keeps them current (recommended), or keeps the plugin with an install script and a `SessionStart` hook. It writes the files and shows the diff; you commit. |
 | **browser-handoff** | For cloud workspaces: when an agent needs something done in your real browser (a dashboard setting, a secret pasted into a web UI), it writes one self-contained task block, with the exact account and your project's rules, for you to paste into a local `claude --chrome` session. |
 | **better-decision** | Before a choice that matters, stops and lays out at least four real options, each with pros, cons, how hard it is to undo, and a rating, then recommends one and waits for your pick. In an OpenSpec change, it records the pick in `design.md`. Use it anytime, in any workspace. |
 
@@ -25,6 +26,7 @@ Conductor lets you run many coding agents side by side, each in its own workspac
 /babysitter:pause, /babysitter:keep-going   in Babysitter HQ → hold everything, then carry on
 /babysitter:status-check          in any workspace → where things stand
 /babysitter:doctor                am I on the latest version, can babysitter work here?
+/babysitter:cloud-setup           once per repo, if you use cloud workspaces
 /babysitter:safe-to-archive       in each workspace (babysitter runs it for you) → archive it in Conductor
 ```
 
@@ -55,13 +57,14 @@ The skills are then `/babysitter:hq`, `/babysitter:new-batch-explore`, and so on
 
 A session that's already open keeps the version it loaded, so after an update run `/reload-plugins` in it or start a new one. To update right now, or without auto-update: `claude plugin marketplace update babysitter && claude plugin update babysitter@babysitter`. `/babysitter:doctor` tells you if you're behind.
 
-**For cloud workspaces**, a cloud sandbox can't see your Mac's plugins, so install the plugin when each workspace is created. Add the `extraKnownMarketplaces` and `enabledPlugins` entries above to your repo's `.claude/settings.json`, and put this in the repository's **Setup script in your organization's cloud settings** (Conductor: switch to the cloud organization at the top left, open the Cloud Computer / organization settings, the repository, Setup script):
+### Recommended setup for cloud workspaces
 
-```bash
-claude plugin marketplace add aaroncohn/babysitter --scope project && claude plugin install babysitter@babysitter --scope project
-```
+A cloud sandbox can't see your Mac's plugins, and installing the plugin when a workspace is created comes too late: Conductor starts the first session before the repository's Setup script has installed anything, and the app caches the `/` picker's list, so `/babysitter:` skills can be missing even after `/reload-plugins`. Run `/babysitter:cloud-setup` once in the repo (from your Mac, where the plugin is installed). It offers two setups:
 
-Cloud workspaces don't run the `[scripts] setup` in `.conductor/settings.toml`; that one is local-only ([Conductor's docs](https://www.conductor.build/docs/cloud/environment-variables): "Cloud workspaces run the repository's Setup script from organization settings"). A `SessionStart` hook that runs the same install is a good backup, but it lands after the first session's command list is built: the picker may not list `/babysitter:` for the first few sessions; typing the full name works meanwhile. Every new workspace then gets the latest version.
+- **Skills committed to the repo (recommended).** Copies of the skills go in `.claude/skills/babysitter-<name>/`, so they're in the picker from the first moment, as `/babysitter-hq`, `/babysitter-doctor` and so on (a dash: Claude Code names a project skill after its folder). A daily GitHub Action (`.github/workflows/sync-babysitter-skills.yml`) copies the latest release and pushes any change. The plugin is set to `false` in the repo's `.claude/settings.json` so nothing shows twice. `/babysitter-doctor` compares the committed copy with the latest release. The copies are made by `skills/cloud-setup/cloud-setup.py vendor`, which renames each skill and rewrites the links between them (`/babysitter:x` becomes `/babysitter-x`, `../x/` becomes `../babysitter-x/`). The cloud-setup skill itself isn't copied.
+- **Keep the plugin installed.** `.claude/install-plugins.py` installs every plugin enabled in `.claude/settings.json`; make it the repository's **Setup script in your organization's cloud settings** (`python3 .claude/install-plugins.py`). A `SessionStart` hook runs it too, and when plugins landed after the session started, it tells the session to `/reload-plugins`. The picker may stay stale until a new chat; typing the full name works. A lock keeps the two from installing at the same time, and the script puts back `settings.json`, which the CLI rewrites.
+
+Cloud workspaces don't run the `[scripts] setup` in `.conductor/settings.toml`; that one is local-only ([Conductor's docs](https://www.conductor.build/docs/cloud/environment-variables): "Cloud workspaces run the repository's Setup script from organization settings").
 
 ## Local vs cloud
 
@@ -69,14 +72,14 @@ Each skill works with the workspaces of its own kind: run from a local workspace
 
 | | Local (Conductor on your Mac) | Cloud (Conductor cloud workspaces) |
 | --- | --- | --- |
-| **Install** | The plugin, with auto-update on (see [Install](#install)). | The plugin, installed by the repository's Setup script in your organization's cloud settings, from the repo's `.claude/settings.json` (see [Install](#install)): a cloud sandbox can't see your Mac's plugins, and `.conductor/settings.toml`'s setup is local-only. |
+| **Install** | The plugin, with auto-update on (see [Install](#install)). | `/babysitter:cloud-setup` once per repo: the skills committed to `.claude/skills/` and kept current by a daily GitHub Action (recommended, so they're `/babysitter-hq` and so on), or the plugin installed by the Setup script with a `SessionStart` hook (see [Recommended setup for cloud workspaces](#recommended-setup-for-cloud-workspaces)). |
 | **Setup** | None. | The `conductor` CLI needs an API token. Turn on automatic API access in Conductor → Settings → General before creating the workspaces (it only applies to new ones), or set `CONDUCTOR_API_KEY`. |
 | **new-batch-explore** | Opens Conductor's Create dialog for each workspace; you press Enter once per workspace, after checking it says Local and your repo (the link picks your repo, but the dialog opens in whichever organization the switcher is on). Then it names each one `m{id}-{name}` in Conductor's database (backed up first). | Creates and names the workspaces itself, with no clicks, and gives you a link to each. |
 | **hq** | Messages appear in each workspace's chat, starting with "Via Babysitter:". They go through Conductor's database (backed up first; falls back to Claude Code's `SendMessage` if that stops working; `/babysitter:doctor --send-test` tells you which). Keep the Conductor app open and the Mac awake, and the organization switcher (top left) on the organization that shows this repo, or the Create dialogs for the queue workspaces make cloud workspaces on another repo. Sessions can use your browser and its logins. | Messages appear in each workspace's chat through the `conductor` CLI. Sessions run in Linux sandboxes, so anything that needs your Mac (your browser and its logins, local files) comes to you as a handoff. |
 | **hq's watcher and re-scan** | `conductor-local.py watch` and `scan` read each workspace's stage from its worktree, and its new turns and typed `/opsx:` commands from Conductor's database. | `watch.py` reads `lastActivityAt` and the newest messages through the `conductor` CLI, which doesn't know stages, so they come from the messages, typed `/opsx:` commands included. |
 | **pause, keep-going** | Hold and release messages go through Conductor's database, like babysitter's others. | Hold and release messages go through the `conductor` CLI. |
 | **status-check** | Same everywhere: it reads this chat, the state file, `gh` and `openspec`. | Same. |
-| **doctor** | Checks Conductor's database and the outbox table babysitter writes to. | Checks the `conductor` CLI token, and names workspaces created before the latest release (they may be on an older version). |
+| **doctor** | Checks Conductor's database and the outbox table babysitter writes to. | Checks the `conductor` CLI token, and names workspaces created before the latest release (they may be on an older version). With committed copies, compares them with the latest release and checks the sync workflow. |
 | **safe-to-archive** | Checks this workspace's branch. Other local branches live in the shared repository and survive archiving. | Archiving deletes the whole sandbox, so it checks every branch in it, plus any running cloud browser session. |
 
 ## Requirements and assumptions
