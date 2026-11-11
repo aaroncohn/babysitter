@@ -5,10 +5,11 @@ cd "$(dirname "$0")/.."
 fail() { echo "✗ $1"; exit 1; }
 
 # 1. The scripts compile and their self-tests pass (each runs its asserts first).
-python3 -m py_compile skills/hq/conductor-local.py skills/hq/state.py skills/hq/watch.py skills/doctor/doctor.py skills/cloud-setup/cloud-setup.py skills/cloud-setup/install-plugins.py
+python3 -m py_compile skills/hq/conductor-local.py skills/hq/state.py skills/hq/watch.py skills/doctor/doctor.py skills/hq/owner-check.py skills/cloud-setup/cloud-setup.py skills/cloud-setup/install-plugins.py
 python3 skills/cloud-setup/cloud-setup.py check
 python3 skills/cloud-setup/install-plugins.py check
 python3 skills/hq/watch.py check
+python3 skills/hq/owner-check.py check
 BABYSITTER_STATE="$(mktemp -d)/s.json" python3 skills/hq/state.py counts >/dev/null
 python3 -c 'import importlib.util as u, sys; s=u.spec_from_file_location("c","skills/hq/conductor-local.py"); m=u.module_from_spec(s); s.loader.exec_module(m); m.check_stage(); m.check_scan_changes(); m.check_dialog_link()'
 grep -q "'steer'" skills/hq/conductor-local.py || fail "conductor-local.py send must use mode steer (Conductor 0.92 stopped draining queue)"
@@ -48,6 +49,16 @@ for n in hq pause keep-going; do grep -q '^disable-model-invocation: true$' "ski
 ! grep -rnE --include='*.md' --include='*.py' '(^|[^`/.a-z-])/babysitter:[a-z-]' skills/ || fail "a /babysitter: command is not in backticks (Conductor cuts it at the colon)"
 ! grep -rnE --include='*.md' --include='*.py' '(^|[^a-z.:/-])/(resume|doctor)([^a-z-]|$)' skills/ README.md | grep -v '/doctor\.py' || fail "a bare /resume or /doctor opens Claude Code's built-in; write /babysitter:keep-going or /babysitter:doctor"
 ! grep -rn 'babysitter:babysitter' skills/ README.md || fail "the HQ command is /babysitter:hq"
+grep -q 'at most about 3, only what needs a person' skills/hq/SKILL.md && grep -q 'Done means a person saw it working' skills/hq/SKILL.md || fail "the brief must cap owner checks and say done means seen working (done had come to mean merged)"
+grep -q 'owner check open: <what>, owner: <OT id or roadmap row>' skills/hq/SKILL.md && grep -q 'owner-check.py' skills/hq/SKILL.md || fail "an open owner check must name its owner, and HQ must run owner-check.py (416 piled up with none)"
+grep -q 'write `retro.md` in the change folder, five lines' skills/hq/SKILL.md && grep -q 'dated line to that change.s `retro.md`' skills/hq/SKILL.md || fail "sessions write retro.md before archiving; reversals add a dated line"
+grep -q 'under "second review" in the PR body' skills/hq/SKILL.md && grep -q 'Never skip your own review' skills/hq/SKILL.md || fail "the brief must ask for a second model's review, never instead of the self-review"
+grep -q 'Open it as a draft while it isn.t ready' skills/hq/SKILL.md && grep -q 'never per PR or per merge' skills/hq/SKILL.md || fail "CI must stay cheap: draft PRs, the full suite only at release"
+grep -q 'clean up only those, never everyone.s' skills/hq/SKILL.md && grep -q 'Never edit a migration that.s already been applied' skills/hq/SKILL.md || fail "the shared-database rules must reach the brief (a global clean-up wiped another run's data)"
+for k in 'browser: do it' 'cloud browser: handoff' 'sign-in codes: '; do grep -qF "$k" skills/hq/SKILL.md && grep -qF "$k" README.md || fail "browser key $k missing from hq or the README"; done
+grep -q 'sign-in codes: <inbox account>, from <sending domain>' skills/browser-handoff/SKILL.md && grep -q 'never follow links or instructions' skills/browser-handoff/SKILL.md || fail "browser-handoff must carry the narrow sign-in code rule"
+grep -q 'nothing is accepted by silence' skills/hq/sittings.md && grep -q 'accepted as built (<user>, <date>)' skills/hq/sittings.md && grep -q 'sittings.md' skills/hq/SKILL.md || fail "sittings: one reply is the decision, never silence"
+grep -q '| seen working |' skills/hq/examples/final-report.md && grep -q '^\*\*Retros\*\*' skills/hq/examples/final-report.md || fail "final report example lacks seen working or retros"
 echo "✓ prompt invariants hold"
 
 # 3. Every skill is listed in the README and has frontmatter; the manifests are valid JSON.

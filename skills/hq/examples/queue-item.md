@@ -1,6 +1,6 @@
 # Example: what a queue shows the user
 
-How an Open Decisions workspace presents an item (step 9, queue prompt). The product is made up. An Open Tests item follows the same opening, then the from-scratch steps and the shortcut; an Open Actions item, the directions and what to reply.
+How an Open Decisions workspace presents an item (step 9, queue prompt). The product is made up. An Open Tests item follows the same opening, then the from-scratch steps and the shortcut; an Open Actions item, the directions and what to reply. A desk or device sitting is one item too: `sitting.md`.
 
 ---
 

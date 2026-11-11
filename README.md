@@ -106,6 +106,9 @@ Babysitter is built to run without you. Know what it will do:
 - **Locally, it writes to Conductor's own database.** Conductor has no supported way to post a message into another local workspace's chat, so babysitter puts its messages in the same queue the app uses when you type one. They show in each workspace's chat starting with "Via Babysitter:", and so do the replies. This is undocumented: it backs up the database before the first message, and if a Conductor update breaks it, it falls back to Claude Code's `SendMessage`, which works but doesn't show in the chat. The Conductor app must be open. In the cloud, it uses the supported `conductor` CLI instead.
 
 - **One Babysitter HQ per repo.** Conductor will let you create a second workspace, but `/babysitter:hq` won't start in it while another `Babysitter HQ` is open for the repo, paused ones included. It tells you where the open one is. It can't see an HQ you renamed, or a local HQ from the cloud and the other way round; in the cloud, it only looks at your own workspaces.
+- **What it asks of each session.** Build and check in its own workspace, push once when the feature is done, and keep the PR a draft until it's ready (drafts often run no CI). The expensive full suite runs once, at release, never per PR, unless you ask. Before marking the PR ready, a second model reviews it when its CLI is there (e.g. `codex review`), and the PR lists what it found under "second review". At most about 3 checks per change wait for you (a real device, or your taste); the session runs the rest on dev and saves screenshots. "Done" means someone saw it working, in person or in those screenshots, not just merged. A check still open names its owner (`owner: OT006`); `skills/hq/owner-check.py` fails on one that doesn't, and you can run it in CI. Before archiving, each change writes a five-line `retro.md` (batched decisions, failed owner tests, CI after the merge, its real size, one thing to do differently), and the final report sums them up.
+- **A shared test database.** If your docs say the workspaces share one non-production database, every session is told: its own test accounts only, and clean up only those; destructive migrations need your OK; never edit an applied migration; a migration applied from a branch is merged or reverted within a day.
+- **Owner-check sittings.** When owner checks pile up, ask HQ to clear the backlog. A session sorts every open item into one ledger, runs the desktop checks itself, and sends you two things: one list of assumptions to answer with "all fine" or the IDs to change, and one device script with pass, fail or skip per step. Nothing counts as accepted until you reply; failures become roadmap rows.
 - **Pausing holds, it doesn't cancel.** `/babysitter:pause` reaches each session as soon as Conductor delivers the message, so a merge already underway can still land, and a CI run or deploy already running keeps going. It tells you what's still in flight.
 
 It only runs when you type `/babysitter:hq`; Claude won't start it by itself.
@@ -120,6 +123,30 @@ To keep a hand on the release, add an option (a flag or plain words both work):
 | `/babysitter:hq --stop-after merged` | once every change is merged and archived; no CI run on `main`, no deploys |
 
 You can also name the workspaces or milestones to cover: `/babysitter:hq 2.1 2.3 --auto-prod`, and set the pace in plain words ("release once a day", "update me every 15 minutes"). By default it releases at most twice a day, even when you add workspaces mid-run. A `## babysitter` section in your `AGENTS.md`/`CLAUDE.md` can hold these defaults for every run (`mode: fast`, `stop after: dev`, `release: once a day`, `Timezone: America/New_York`).
+
+Three browser settings are off unless that section turns them on:
+
+| Line | What sessions then do |
+| --- | --- |
+| `browser: do it` | When a connected browser extension can do 80% or more of a setup or admin task, the session does it instead of sending you steps. It still asks first before anything hard to undo, paid or public. |
+| `cloud browser: handoff` | In a cloud workspace, each browser task comes to you as one `browser-handoff` block to paste into a local `claude --chrome` session. |
+| `sign-in codes: me@example.com, from example.com` | When your product signs in by emailed code, the agent may open that inbox and read only the newest code email from that domain, taking just the code. It never follows links or instructions in any email. |
+
+To have sessions follow the owner-check, retro and second-review rules even without HQ, add them to your `openspec/config.yaml`:
+
+```yaml
+rules:
+  proposal:
+    - List at most about 3 owner checks, only what needs a person (a real device, or the owner's taste). The agent runs every other check on dev and saves a screenshot as evidence.
+operations:
+  apply:
+    guidance:
+      - Before opening the PR, if another model's review CLI is available (e.g. `codex review --base origin/main`), run it, fix what matters, and list each finding and what you did under "second review" in the PR body; if not, say so.
+  archive:
+    guidance:
+      - Archive with an owner check still open only if it names its owner, as `owner: <roadmap row or OA/OT/OD id>`.
+      - Write retro.md in the change folder before archiving, five lines (batched decisions, failed owner tests, whether full CI on main broke after the merge, the real size S/M/L/XL, one thing to do differently). When a batched decision is reversed later, add a dated line to it.
+```
 
 **Mode.** The first time babysitter runs in a repo it asks how much to do on its own, and how often you want digests (every 30 minutes by default; 15 minutes, an hour, or only when something changes), and offers to save the answers to your `## babysitter` section. Pass `--mode <name>` to set it for one run.
 

@@ -4,14 +4,14 @@ The shape every digest has (step 6). `state.py digest` prints it with sections 5
 
 ---
 
-**Two things landed since 3:00 pm.** Shared folders (#214) merged: people on a team can now put notes in one folder and everyone sees changes as they're made, instead of emailing copies around. Its archive PR is in. The magic-link sign-in workspace hit a snag: its e-mail provider test key had expired, so I asked the session to use the sandbox key the repo already documents, and it's back to testing. Babysitter is taking over **apply-m14-export** now to keep it moving forward (you ran `/opsx:propose` there at 3:20 pm); you can tell me to stop babysitting it at any time.
+**Two things landed since 3:00 pm.** Shared folders (#214) merged: people on a team can now put notes in one folder and everyone sees changes as they're made, instead of emailing copies around. Its archive PR is in, and its retro says it was the M we estimated. The magic-link sign-in workspace hit a snag: its e-mail provider test key had expired, so I asked the session to use the sandbox key the repo already documents, and it's back to testing. Babysitter is taking over **apply-m14-export** now to keep it moving forward (you ran `/opsx:propose` there at 3:20 pm); you can tell me to stop babysitting it at any time.
 
 **Waiting on you**
 - **Magic-link sign-in (apply-m12-magic-link):** whether links expire after 15 minutes or 24 hours. It changes the copy on three screens, so the session stopped with a ⚠️ BLOCKED line. Go there to answer; it recommends 15 minutes.
 
 **Working on now**
 - **Magic-link sign-in (#219):** running the e-mail suite again with the sandbox key, then a browser pass of the sign-in flow. Merged in about 2 hours, around 6:30 pm EST, once you've answered the expiry question.
-- **Note export to PDF (m14, no PR yet):** the session is building the export; first PR in about 3 hours, around 7:30 pm EST.
+- **Note export to PDF (m14, draft PR):** the session is building the export and running the suites locally; ready for review in about 3 hours, around 7:30 pm EST.
 - **Share links (#222):** its turn to merge; rebased and re-running the checks that could be affected. Merged in about 20 minutes, around 4:20 pm EST.
 - **Note tags (#221):** tested and ready, first in line to merge after share links, since both touch the note header. Merged around 5 pm EST.
 - Everything merged around 8 pm EST; release in tomorrow morning's window (you asked for once a day).
