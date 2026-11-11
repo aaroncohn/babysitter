@@ -5,7 +5,9 @@ cd "$(dirname "$0")/.."
 fail() { echo "✗ $1"; exit 1; }
 
 # 1. The scripts compile and their self-tests pass (each runs its asserts first).
-python3 -m py_compile skills/hq/conductor-local.py skills/hq/state.py skills/hq/watch.py skills/doctor/doctor.py
+python3 -m py_compile skills/hq/conductor-local.py skills/hq/state.py skills/hq/watch.py skills/doctor/doctor.py skills/cloud-setup/cloud-setup.py skills/cloud-setup/install-plugins.py
+python3 skills/cloud-setup/cloud-setup.py check
+python3 skills/cloud-setup/install-plugins.py check
 python3 skills/hq/watch.py check
 BABYSITTER_STATE="$(mktemp -d)/s.json" python3 skills/hq/state.py counts >/dev/null
 python3 -c 'import importlib.util as u, sys; s=u.spec_from_file_location("c","skills/hq/conductor-local.py"); m=u.module_from_spec(s); s.loader.exec_module(m); m.check_stage(); m.check_scan_changes(); m.check_dialog_link()'
@@ -58,6 +60,23 @@ done
 python3 -c 'import json; json.load(open(".claude-plugin/plugin.json")); json.load(open(".claude-plugin/marketplace.json"))'
 ! grep -q '"version"' .claude-plugin/plugin.json || fail "plugin.json must not have a version"
 echo "✓ skills listed, manifests valid"
+
+# 3b. Vendored copies (cloud-setup.py vendor): renamed, every link between skills rewritten, and the scripts still run.
+V=$(mktemp -d)
+python3 skills/cloud-setup/cloud-setup.py vendor "$V" --from . >/dev/null
+names=$(ls skills | grep -vx cloud-setup | paste -sd'|' -)
+[ ! -e "$V/babysitter-cloud-setup" ] || fail "cloud-setup must not be vendored (it needs the plugin's own files)"
+for d in "$V"/babysitter-*/; do n=$(basename "$d"); grep -q "^name: $n$" "$d/SKILL.md" || fail "vendored $n: frontmatter name not renamed"; grep -q '^aaroncohn/babysitter@' "$d/.babysitter-source" || fail "vendored $n: no .babysitter-source"; done
+! grep -rnE "babysitter:($names)([^a-z-]|$)|\.\./($names)/" "$V" || fail "a vendored skill still links to a /babysitter: name or a ../<skill>/ folder"
+python3 -m py_compile "$V"/babysitter-*/*.py
+python3 "$V/babysitter-hq/watch.py" check
+BABYSITTER_STATE="$V/s.json" python3 "$V/babysitter-hq/state.py" counts >/dev/null
+python3 -c 'import importlib.util as u, sys; s=u.spec_from_file_location("d", sys.argv[1]); m=u.module_from_spec(s); s.loader.exec_module(m); v=m.vendored(); assert v and v[1], v' "$V/babysitter-doctor/doctor.py" || fail "vendored doctor doesn't recognise its copy"
+grep -q '../babysitter-hq/conductor-local.py' "$V/babysitter-doctor/doctor.py" || fail "vendored doctor must reach babysitter-hq"
+grep -q 'cloud-setup.py" vendor .claude/skills' skills/cloud-setup/sync-babysitter-skills.yml || fail "sync workflow must run cloud-setup.py vendor"
+grep -q 'For good: `/babysitter:cloud-setup`' skills/doctor/doctor.py || fail "doctor's late-install fix must point to cloud-setup"
+rm -rf "$V"
+echo "✓ vendored copies work"
 
 # 4. Nothing project-specific leaked into the skills (CLAUDE.md: keep the skills generic).
 ! grep -rniE --exclude-dir=__pycache__ 'nicesite|@gmail' skills/ || fail "project-specific name in skills/"
