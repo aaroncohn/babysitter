@@ -16,6 +16,7 @@ echo "✓ scripts compile and self-tests pass"
 same() { diff <(grep -F "$1" "$2") <(grep -F "$1" "$3") >/dev/null || fail "$4"; }
 grep -q 'ask the open decisions \*\*one at a time\*\*' skills/new-batch-explore/SKILL.md || fail "explore prompt must ask decisions one at a time"
 same 'ask the open decisions' skills/new-batch-explore/SKILL.md skills/new-batch-explore/cloud.md "explore decision text differs between SKILL.md and cloud.md"
+grep -q 'm{id}-{id}-{id}-batch' skills/new-batch-explore/SKILL.md && grep -q 'why they.re batched' skills/new-batch-explore/SKILL.md && grep -q 'why they.re together' skills/new-batch-explore/cloud.md || fail "new-batch-explore must name batch workspaces m{id}-{id}-{id}-batch and say why they're batched"
 ! grep -q 'every open decision in one message' skills/new-batch-explore/SKILL.md skills/new-batch-explore/cloud.md || fail "explore prompt asks all decisions at once"
 grep -q 'output of `state.py table`, pasted as is' skills/hq/SKILL.md || fail "digest must paste state.py table"
 grep -q 'output of `state.py counts`, pasted as is' skills/hq/SKILL.md || fail "digest must paste state.py counts"

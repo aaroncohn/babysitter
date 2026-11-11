@@ -55,15 +55,15 @@ Candidates: not ✅/done, and all of their steps not done. Drop any that are:
 
 Prefer roadmap order; include a partially-done 🟡 milestone only if its remaining steps are unblocked. Two is fine when the roadmap is thin; never pad to five.
 
-If the roadmap sizes milestones, bundle two or three small (S) ones that don't overlap into one workspace as a single batch change, named `m{id}-{id}-batch` (e.g. `m4.1-4.2-batch`), with each milestone's step table in the prompt. A small milestone alone still pays for a whole explore, propose, PR, archive and release cycle.
+**Batch small rows.** A small milestone alone still pays for a whole explore, propose, PR, archive and release cycle. When two or three are each too small for their own workspace (sized S in the roadmap, or a few small steps when it has no sizes) and related (same area, screens or files), put them in one workspace as a single batch change, named `m{id}-{id}-{id}-batch` (e.g. `m424-427-428-batch`; IDs lowercased without dots or spaces), with each milestone's step table in the prompt. Overlap doesn't rule out a batch: one session builds all of them. Never batch a milestone that's M or bigger.
 
-Show the picks in a chat message, as a short table (ID, name, why now, what it avoids), followed by anything deliberately skipped with its one-line reason. Offer lettered alternatives if there's a genuine judgment call, naming each milestone by ID and name (e.g. "2.5 custom code/CSS"), never by ID alone. End the message by asking the user to reply with a letter, and **wait for that reply before creating anything.**
+Show the picks in a chat message, as a short table (ID, name, why now, what it avoids), with each batch as one row that names its milestones and says why they're batched ("three small fixes to the share dialog; one workspace instead of three"), followed by anything deliberately skipped with its one-line reason. Offer lettered alternatives if there's a genuine judgment call, naming each milestone by ID and name (e.g. "2.5 custom code/CSS"), never by ID alone. End the message by asking the user to reply with a letter, and **wait for that reply before creating anything.**
 
 Don't use a question or multiple-choice tool (such as AskUserQuestion) for this: its popup hides the table and the skipped list, so the user sees bare IDs with no context.
 
 ## 4. Create the workspaces
 
-Workspace name: `m{id}-{short-name}`, so the milestone number shows in Conductor's sidebar. The ID is the roadmap's, lowercased and prefixed with `m` (`10` gives `m10`, `6b` gives `m6b`; an ID that already starts with a letter, like `M9`, stays `m9`). The short name is one or two kebab-case words for the milestone, e.g. `m10-alerts`, `m9-dashboards`. Don't add `explore`: the workspace soon moves past exploring.
+Workspace name: `m{id}-{short-name}`, so the milestone number shows in Conductor's sidebar. The ID is the roadmap's, lowercased and prefixed with `m` (`10` gives `m10`, `6b` gives `m6b`; an ID that already starts with a letter, like `M9`, stays `m9`). The short name is one or two kebab-case words for the milestone, e.g. `m10-alerts`, `m9-dashboards`. Don't add `explore`: the workspace soon moves past exploring. A batch (step 3) is named `m{id}-{id}-{id}-batch` instead.
 
 Prompt for each milestone (`examples/first-message.md`, next to this file, shows what its first reply should look like: findings, scope, one decision, stop):
 
@@ -79,6 +79,8 @@ Then ask the open decisions **one at a time**, starting with the one the others 
 
 After the last decision is answered, summarize every decision in one table and end with: "Next step: run `/opsx:propose` to draft this into a proposal." Write slash commands in backticks, as here, so the chat shows the whole command. Don't create the change or write its artifacts from explore mode, and don't ask whether to; `/opsx:propose` does that.
 ```
+
+For a batch, the first line names every milestone (`/opsx:explore Milestones 4.24, 4.27, 4.28 (batch): {titles}`), each milestone's step table follows, and the prompt adds: "These are batched because each is small; explore and propose them as one change."
 
 Open them **one at a time**: the Create dialog has one shared draft, and a second link before Enter closes the dialog. Write each prompt to a file, then run this, which opens the dialog on this repo and waits up to 3 minutes for Enter, so give the shell call that long. Never write a `conductor://` link by hand.
 
@@ -102,4 +104,4 @@ Tell the user before the first dialog: "Conductor will pop a Create dialog for e
 
 ## 5. Report
 
-List each workspace created (ID, name, what it was told to explore). If a name didn't stick, say so and give the name to set by hand in the sidebar.
+List each workspace created (ID, name, what it was told to explore), and for a batch, which milestones it holds and why they're together. If a name didn't stick, say so and give the name to set by hand in the sidebar.

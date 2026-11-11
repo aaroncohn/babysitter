@@ -38,6 +38,8 @@ Then ask the open decisions **one at a time**, starting with the one the others 
 After the last decision is answered, summarize every decision in one table and end with: "Next step: run `/opsx:propose` to draft this into a proposal." Write slash commands in backticks, as here, so the chat shows the whole command. Don't create the change or write its artifacts from explore mode, and don't ask whether to; `/opsx:propose` does that.
 ```
 
+A batch's prompt and name follow `SKILL.md` too.
+
 No dialog is involved, so create them all after the user confirms the picks. Write each prompt to a file first to avoid shell quoting problems:
 
 ```bash
@@ -49,4 +51,4 @@ Inside a workspace, `create` defaults to this workspace's project. Keep each res
 
 ## 5. Report
 
-List each workspace created (ID, name, what it was told to explore) with its deep link, so the user can click straight into it.
+List each workspace created (ID, name, what it was told to explore), and for a batch, which milestones it holds and why they're together, with its deep link, so the user can click straight into it.
